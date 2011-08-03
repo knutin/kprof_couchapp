@@ -16,10 +16,17 @@ $.couch.app(function(app) {
     $db.view("kprof_couchapp/calls", {
         group: true,
         success: function (calls_data) {
-            _.each(calls_data.rows, function (r) {
+            var calls = _.map(calls_data.rows, function (r) {
+                return [r['key'], r['value']];
+            });
+            calls = _.sortBy(calls, function (c) {
+                return c[1];
+            }).reverse();
+
+            _.each(calls, function (r) {
                 calls_select.append($("<option></option>").
-                                    attr("value", r['key']).
-                                    text(r['key'])
+                                    attr("value", r[0]).
+                                    text(r[0])
                                    );
             });
         }
