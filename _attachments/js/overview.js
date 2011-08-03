@@ -10,34 +10,62 @@ $.couch.app(function(app) {
 
     var $db = $.couch.db("kprof_couchapp");
     var now = Math.round(new Date().getTime() / 1000);
-    
-    // Get the tiers seen in the given time period, sorted by the sum
-    // of means, which should give us an idea of the most expensive /
-    // least expensive tier, and thus how to sort the graph
-    $db.view("kprof_couchapp/tiers", {
+
+    // Populate list of calls
+    var calls_select = $("#call");
+    $db.view("kprof_couchapp/calls", {
         group: true,
-        success: function(tier_data) {
-            var tiers = _.map(tier_data.rows, function (o) { return o['key'] });
-
-            _.each(tiers, function(tier) {
-                $db.view("kprof_couchapp/tier_by_time", {
-                    startkey: [tier, now - 60 * 60],
-                    endkey: [tier, now],
-                    async: false,
-                    success: function(data) {
-                        series[tier] = data.rows;
-                        var s = _.map(data.rows, function (r) {
-                            var t = r['value']['timestamp'] * 1000;
-                            return [t, r['value']['mean']]
-
-                        });
-                        chart.addSeries({name: tier, data: s});
-                    }
-                });
+        success: function (calls_data) {
+            _.each(calls_data.rows, function (r) {
+                calls_select.append($("<option></option>").
+                                    attr("value", r['key']).
+                                    text(r['key'])
+                                   );
             });
         }
     });
+    calls_select.change(function () {
+        chart = make_chart();
+        load_call($(this).val());
+    });
+
+
+    load_call('_total');
 });
+
+function load_call(call) {
+    var now = Math.round(new Date().getTime() / 1000);
+    var $db = $.couch.db("kprof_couchapp");
+    var startkey = [call, now - 60 * 60];
+    var endkey = [call, now];
+    console.log(startkey);
+    console.log(endkey);
+
+    series = {};
+
+    console.log(call);
+    $db.view("kprof_couchapp/call_by_time", {
+        startkey: startkey,
+        endkey: endkey,
+
+        success: function(tier_data) {
+            console.log(tier_data.rows.length);
+            series = _.groupBy(tier_data.rows, function (r) {
+                var tier = r['value']['key'].split(".")[0];
+                return tier;
+            });
+
+            _.each(series, function (data, tier) {
+                var s = _.map(data, function (r) {
+                    var t = r['value']['timestamp'] * 1000;
+                    return [t, r['value']['mean']];
+                });
+                chart.addSeries({name: tier, data: s});
+            });
+        }
+    });
+}
+
 
 function make_chart() {
     return new Highcharts.Chart({
@@ -86,5 +114,5 @@ function make_chart() {
 }
 
 function trunc(i) {
-    return Math.round(i * 100) / 100;
+    return Math.round((i / 1000)* 100) / 100;
 }
