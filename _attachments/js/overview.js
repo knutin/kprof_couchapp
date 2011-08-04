@@ -1,4 +1,5 @@
-var series = {};
+var response_chart = {};
+var rpm_chart = {};
 
 $.couch.app(function(app) {
     $("#account").evently("account", app);
@@ -6,7 +7,8 @@ $.couch.app(function(app) {
     $.evently.connect("#account","#profile", ["loggedIn","loggedOut"]);
     $("#items").evently("items", app);
 
-    chart = make_chart();
+    response_chart = make_response_chart();
+    rpm_chart = make_rpm_chart();
 
     var $db = $.couch.db("kprof_couchapp");
     var now = Math.round(new Date().getTime() / 1000);
@@ -51,7 +53,8 @@ $.couch.app(function(app) {
         }
     });
     calls_select.change(function () {
-        chart = make_chart();
+        response_chart = make_response_chart();
+        rpm_chart = make_rpm_chart();
         load_call($(this).val());
     });
 
@@ -81,17 +84,23 @@ function load_call(call) {
                     var t = r['value']['timestamp'] * 1000;
                     return [t, r['value']['mean']];
                 });
-                chart.addSeries({name: tier, data: s});
+                var rpm = _.map(data, function (r) {
+                    var t = r['value']['timestamp'] * 1000;
+                    return [t, r['value']['observations']];
+                });
+
+                response_chart.addSeries({name: tier, data: s});
+                rpm_chart.addSeries({name: tier, data: rpm});
             });
         }
     });
 }
 
 
-function make_chart() {
+function make_response_chart() {
     return new Highcharts.Chart({
         chart: {
-            renderTo: 'chart',
+            renderTo: 'response-time-chart',
             defaultSeriesType: 'line',
         },
         xAxis: {
@@ -129,6 +138,47 @@ function make_chart() {
         },
         title: {
             text: 'Mean response time, by tier'
+        },
+        series: []
+    });
+}
+
+function make_rpm_chart() {
+    return new Highcharts.Chart({
+        chart: {
+            renderTo: 'rpm-chart',
+            defaultSeriesType: 'line',
+        },
+        xAxis: {
+            type: 'datetime'
+        },
+        yAxis: {
+            title: null
+        },
+        tooltip: {
+            enable: true,
+            formatter: function() {
+                var x = this.point.x / 1000;
+                var s = series[this.series.name];
+                var datapoint = _.detect(s, function(o) {
+                    return o['value']['timestamp'] == x;
+                });
+                var d = datapoint['value'];
+                return "<strong>" + this.series.name + "</strong>" +
+                    "<br/>Observations: " + d['observations'] +
+                    "<br/>Mean: " + trunc(d['mean']) +
+                    "<br/>Min: " + trunc(d['min']) +
+                    "<br/>Max: " + trunc(d['max']) +
+                    "<br/>SD: " + trunc(d['sd']) +
+                    "<br/>25%: " + trunc(d['quantile_25']) +
+                    "<br/>75%: " + trunc(d['quantile_75']) +
+                    "<br/>99%: " + trunc(d['quantile_99']) +
+                    "<br/>99.9%: " + trunc(d['quantile_999'])
+                ;
+            }
+        },
+        title: {
+            text: 'Requests Per Minute'
         },
         series: []
     });

@@ -73,3 +73,11 @@ div.avatar img {
 #items ul {
   list-style: none;
 }
+
+
+.chart {
+    width: 1024px;
+    height: 300px;
+    border-top: 1px solid #000;
+    margin-bottom: 1em;
+}
