@@ -13,21 +13,40 @@ $.couch.app(function(app) {
 
     // Populate list of calls
     var calls_select = $("#call");
+    calls_select.append($("<option></option>").
+                        attr("value", "_total").
+                        text("Aggregated across all calls")
+                       );
+
     $db.view("kprof_couchapp/calls", {
         group: true,
+        startkey: [now - 30 * 60],
         success: function (calls_data) {
-            var calls = _.map(calls_data.rows, function (r) {
-                return [r['key'], r['value']];
-            });
-            calls = _.sortBy(calls, function (c) {
-                return c[1];
-            }).reverse();
+            // Sum the means of each specific call
+            var calls = _(calls_data.rows).chain()
+                .groupBy(function (r) {
+                    return r['key'][1];
+                })
+                .foldl(function (acc, values, call) {
+                    var sum = _.foldl(values, function (sums, v) {
+                        return sums + v['value'];
+                    }, 0);
 
-            _.each(calls, function (r) {
+                    acc[call] = (acc[call] || 0) + sum;
+                    return acc
+                }, {}).value();
+
+            var total_runtime = calls['_total'];
+            delete calls['_total'];
+
+            _.each(calls, function (mean, call) {
+                var percentage = (mean / total_runtime) * 100;
+
                 calls_select.append($("<option></option>").
-                                    attr("value", r[0]).
-                                    text(r[0])
+                                    attr("value", call).
+                                    text(call + ": " + trunc(percentage) + "%")
                                    );
+                
             });
         }
     });
@@ -36,8 +55,8 @@ $.couch.app(function(app) {
         load_call($(this).val());
     });
 
+    calls_select.change();
 
-    load_call('_total');
 });
 
 function load_call(call) {
@@ -45,18 +64,13 @@ function load_call(call) {
     var $db = $.couch.db("kprof_couchapp");
     var startkey = [call, now - 60 * 60];
     var endkey = [call, now];
-    console.log(startkey);
-    console.log(endkey);
 
     series = {};
-
-    console.log(call);
     $db.view("kprof_couchapp/call_by_time", {
         startkey: startkey,
         endkey: endkey,
 
         success: function(tier_data) {
-            console.log(tier_data.rows.length);
             series = _.groupBy(tier_data.rows, function (r) {
                 var tier = r['value']['key'].split(".")[0];
                 return tier;
@@ -121,5 +135,5 @@ function make_chart() {
 }
 
 function trunc(i) {
-    return Math.round((i / 1000)* 100) / 100;
+    return Math.round(i * 100) / 100;
 }
