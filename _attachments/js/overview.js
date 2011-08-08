@@ -178,7 +178,7 @@ function make_rpm_chart() {
             }
         },
         title: {
-            text: 'Requests Per Minute'
+            text: '(Traced) Requests Per Minute'
         },
         series: []
     });
